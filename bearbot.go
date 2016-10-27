@@ -8,7 +8,7 @@ import (
 	"net/http"
 	"io/ioutil"
 	"os/exec"
-	"./discordgo"
+	"github.com/bwmarrin/discordgo"
 	"time"
 	"os"
 	"encoding/json"
