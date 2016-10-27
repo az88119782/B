@@ -178,7 +178,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
 						return
 					}
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("CPU usage is %f%%", getCPUUsage(1000)))
+					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("CPU usage is %f%%", getCPUUsage(3000)))
 				}else{
 					if !has {
 						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
@@ -215,11 +215,12 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 }
 
 func getCPUUsage(sleepTime int) (total float64) {
-    contents, err := ioutil.ReadFile("/proc/stat")
+    _, err := ioutil.ReadFile("/proc/stat")
 	if err == nil {
 		var idle, total [2]uint64
-		lines := strings.Split(string(contents), "\n")
 		for j:= 0; j < 2; j++ {
+			contents, _ := ioutil.ReadFile("/proc/stat")
+			lines := strings.Split(string(contents), "\n")
 			for _, line := range(lines) {
 				fields := strings.Fields(line)
 				if fields[0] == "cpu" {
@@ -233,6 +234,7 @@ func getCPUUsage(sleepTime int) (total float64) {
 							idle[j] = val
 						}
 					}
+					break
 				}
 			}
 			time.Sleep(time.Duration(sleepTime) * time.Millisecond)
