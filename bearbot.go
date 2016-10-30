@@ -17,7 +17,7 @@ import (
 var token string
 var botID string
 var key string
-var showOnce map[string]bool = make(map[string]bool)
+var serverRole map[string]ServerRole = make(map[string]ServerRole)
 var playing []string =[]string {"WITH THE FATE OF THE UNIVERSE", "jesus", "with his feet", "in the woods", "with other bears"}
 var responses []string = []string {":anger:`Rawr?`", "How did i end up in this thing?", "I will eat you when i get my powers back"}
 
@@ -122,41 +122,61 @@ func serverHasRole(s *discordgo.Session, guildID string) (role string){
 	return ""
 }
 
+func userHasRole (guild, user, role string, s *discordgo.Session ) (has bool, err error){
+	mem, err := s.State.Member(guild, user)
+	if err!= nil {
+		return false, err
+	}else{
+		for i:= 0; i < len (mem.Roles); i++{
+			if mem.Roles[i] == role{
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func runCmd(s *discordgo.Session, channel, user string)(run bool, err error){
+	has := false
+	cha, err := s.State.Channel(channel)
+	if err != nil {
+		return false, err
+	}
+	role := serverRole[cha.GuildID]
+	if len(role.ID) == 0 && !role.shownError {
+		roleID := serverHasRole(s, cha.GuildID)
+		if roleID != ""{
+			serverRole[cha.GuildID] = ServerRole {ID : roleID, shownError : false }
+			has, err = userHasRole(cha.GuildID, user, roleID, s)
+			if err != nil {
+				return false, err
+			}
+		} else{
+			fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
+			serverRole[cha.GuildID] = ServerRole {ID : "", shownError : true }
+			has = true
+		}
+	}else{
+		has, err = userHasRole(cha.GuildID, user, role.ID, s)
+		if err != nil {
+			return false, err
+		}
+	}
+	return has, nil
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if m.Author.ID == botID{
 		return	
 	}
-	//permissions
-	var has bool = false
-	cha, err := s.State.Channel(m.ChannelID)
-	if err != nil {
-		fmt.Println(err)
-		s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
-		return
-	}else if !showOnce[cha.GuildID]{
-		role := serverHasRole(s, cha.GuildID)
-		if role != ""{
-			mem, err := s.State.Member(cha.GuildID, m.Author.ID)
-			if err!= nil {
-				fmt.Println(err)
-				s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
-				return
-			}else{
-				for i:= 0; i < len (mem.Roles); i++{
-					if mem.Roles[i] == role{
-						has = true
-					}
-				}
-			}
-		} else{
-			fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
-			showOnce[cha.GuildID] = true
-			has = true
-		}
-	}
 	mentions := m.Mentions
 	if len(mentions) > 0 {
 		if mentions[0].ID == botID {
+			has, err := runCmd(s, m.ChannelID, m.Author.ID)
+			if err != nil{
+				fmt.Println(err)
+				s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+			}
 			if len(m.Content) < 22{
 					if !has {
 						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
@@ -189,18 +209,33 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			}
 		}
 	}else if m.Content == "🐻"{
+		has, err := runCmd(s, m.ChannelID, m.Author.ID)
+		if err != nil{
+			fmt.Println(err)
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+		}
 		if !has {
 			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
 			return
 		}
 		s.ChannelMessageSend(m.ChannelID, getImage("bear"))
 	}else if strings.ToLower(m.Content) == "bear"{
+		has, err := runCmd(s, m.ChannelID, m.Author.ID)
+		if err != nil{
+			fmt.Println(err)
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+		}
 		if !has {
 			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
 			return
 		}
 		s.ChannelMessageSend(m.ChannelID, "Rawr")
 	} else if strings.HasPrefix(strings.ToLower(m.Content), "set playing"){
+		has, err := runCmd(s, m.ChannelID, m.Author.ID)
+		if err != nil{
+			fmt.Println(err)
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+		}
 		if !has {
 			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
 			return
@@ -282,6 +317,11 @@ func getImage(content string) string{
 		return ":anger: `RAWR NO IMAGES EXIST`"
 	}
 	return ":anger: `NO GOOGLE API KEY`"
+}
+
+type ServerRole struct {
+	ID string
+	shownError bool
 }
 
 type response struct {
