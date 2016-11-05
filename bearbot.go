@@ -285,7 +285,7 @@ func getYTVid(content string, isRand bool) string{
 				}
 				return fmt.Sprintf("https://youtube.com/watch?v=%s", res.Items[item].ID.VideoID) 
 			}
-			return ":anger: `RAWR VIDEOS EXIST`"
+			return ":anger: `RAWR NO VIDEOS EXIST`"
 		//} else{
 		//	return ":anger: `Rawr, how dare you not search for bears`"
 		//}
