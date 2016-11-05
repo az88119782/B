@@ -17,12 +17,9 @@ import (
 var token string
 var botID string
 var key string
-var showOnce map[string]bool = make(map[string]bool)
+var serverRole map[string]ServerRole = make(map[string]ServerRole)
 var playing []string =[]string {"WITH THE FATE OF THE UNIVERSE", "jesus", "with his feet", "in the woods", "with other bears"}
 var responses []string = []string {":anger:`Rawr?`", "How did i end up in this thing?", "I will eat you when i get my powers back"}
-
-//add commands to add responses
-//add commands to add new playing options
 
 func init() {
 	readConfig()
@@ -131,6 +128,49 @@ func serverHasRole(s *discordgo.Session, guildID string) (role string){
 	return ""
 }
 
+func userHasRole (guild, user, role string, s *discordgo.Session ) (has bool, err error){
+	mem, err := s.State.Member(guild, user)
+	if err!= nil {
+		return false, err
+	}else{
+		for i:= 0; i < len (mem.Roles); i++{
+			if mem.Roles[i] == role{
+				return true, nil
+			}
+		}
+	}
+	return false, nil
+}
+
+func runCmd(s *discordgo.Session, channel, user string)(run bool, err error){
+	has := false
+	cha, err := s.State.Channel(channel)
+	if err != nil {
+		return false, err
+	}
+	role := serverRole[cha.GuildID]
+	if len(role.ID) == 0 && !role.shownError {
+		roleID := serverHasRole(s, cha.GuildID)
+		if roleID != ""{
+			serverRole[cha.GuildID] = ServerRole {ID : roleID, shownError : false }
+			has, err = userHasRole(cha.GuildID, user, roleID, s)
+			if err != nil {
+				return false, err
+			}
+		} else{
+			fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
+			serverRole[cha.GuildID] = ServerRole {ID : "", shownError : true }
+			has = true
+		}
+	}else{
+		has, err = userHasRole(cha.GuildID, user, role.ID, s)
+		if err != nil {
+			return false, err
+		}
+	}
+	return has, nil
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if botID == "" {
 		getBotId(s)
@@ -141,36 +181,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	//is a command
 	if strings.HasPrefix(strings.ToLower(m.Content),"!bb") || strings.HasPrefix(strings.ToLower(m.Content),"!bearbot") {
 		//permissions
-		var has bool = false
-		cha, err := s.State.Channel(m.ChannelID)
+		has, err := runCmd(s, m.ChannelID, m.Author.ID)
 		if err != nil {
 			fmt.Println(err)
-			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr`")
 			return
-		}else if !showOnce[cha.GuildID]{
-			role := serverHasRole(s, cha.GuildID)
-			if role != ""{
-				mem, err := s.State.Member(cha.GuildID, m.Author.ID)
-				if err!= nil {
-					fmt.Println(err)
-					s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
-					return
-				}else{
-					for i:= 0; i < len (mem.Roles); i++{
-						if mem.Roles[i] == role{
-							has = true
-						}
-					}
-				}
-			} else{
-				fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
-				showOnce[cha.GuildID] = true
-				has = true
-			}
-		}
-		rand := rand.Intn(21)
-		if rand > 19  {
-			s.ChannelMessageSend(m.ChannelID, ":bear:")
 		}
 		if !has {
 			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
@@ -221,6 +236,7 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				term = strings.Replace(term, " ", "%20",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
 			//add more commands to accept new responses and accept new statuses
+			//add command to give user permission to use bearbot
 			default:
 				s.ChannelMessageSend(m.ChannelID, ":anger:`Not a command`")
 			}
@@ -349,6 +365,11 @@ func getImage(content string) string{
 		//}
 	}
 	return ":anger: `NO GOOGLE API KEY`"
+}
+
+type ServerRole struct {
+	ID string
+	shownError bool
 }
 
 type response struct {
