@@ -70,7 +70,6 @@ func setBotStatus(session *discordgo.Session, status string){
 	if err != nil {
 		fmt.Println(err)
 	}
-	//
 }
 
 func main() {
@@ -94,10 +93,20 @@ func main() {
 	return
 }
 
-func ready(s *discordgo.Session, event *discordgo.Ready) {
-	if botID == ""{
-		botID = s.State.User.ID
+func getBotId(s *discordgo.Session){
+if botID == ""{
+		if s.State != nil {
+			if s.State.User != nil {
+				if s.State.User.ID != "" {
+					botID = s.State.User.ID
+				}
+			}
+		}
 	}
+}
+
+func ready(s *discordgo.Session, event *discordgo.Ready) {
+	getBotId(s)
 	go changeStatus(s)
 }
 
@@ -123,95 +132,149 @@ func serverHasRole(s *discordgo.Session, guildID string) (role string){
 }
 
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
-	if m.Author.ID == botID{
+	if botID == "" {
+		getBotId(s)
+	}
+	if botID == "" || m.Author.ID == botID{
 		return	
 	}
-	//permissions
-	var has bool = false
-	cha, err := s.State.Channel(m.ChannelID)
-	if err != nil {
-		fmt.Println(err)
-		s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
-		return
-	}else if !showOnce[cha.GuildID]{
-		role := serverHasRole(s, cha.GuildID)
-		if role != ""{
-			mem, err := s.State.Member(cha.GuildID, m.Author.ID)
-			if err!= nil {
-				fmt.Println(err)
-				s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
-				return
-			}else{
-				for i:= 0; i < len (mem.Roles); i++{
-					if mem.Roles[i] == role{
-						has = true
+	//is a command
+	if strings.HasPrefix(strings.ToLower(m.Content),"!bb") || strings.HasPrefix(strings.ToLower(m.Content),"!bearbot") {
+		//permissions
+		var has bool = false
+		cha, err := s.State.Channel(m.ChannelID)
+		if err != nil {
+			fmt.Println(err)
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+			return
+		}else if !showOnce[cha.GuildID]{
+			role := serverHasRole(s, cha.GuildID)
+			if role != ""{
+				mem, err := s.State.Member(cha.GuildID, m.Author.ID)
+				if err!= nil {
+					fmt.Println(err)
+					s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you crash`")
+					return
+				}else{
+					for i:= 0; i < len (mem.Roles); i++{
+						if mem.Roles[i] == role{
+							has = true
+						}
 					}
 				}
+			} else{
+				fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
+				showOnce[cha.GuildID] = true
+				has = true
+			}
+		}
+		rand := rand.Intn(21)
+		if rand > 19  {
+			s.ChannelMessageSend(m.ChannelID, ":bear:")
+		}
+		if !has {
+			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
+			return
+		}
+		var cmd string
+		if strings.HasPrefix(strings.ToLower(m.Content),"!bb"){
+			if len(m.Content) > 4 {
+				cmd = m.Content[4:]
+			} else {
+				cmd = ""
+			}
+		}else{
+			if len(m.Content) > 9 {
+				cmd = m.Content[9:]
+			} else {
+				cmd = ""
+			}
+		}
+		if len(cmd) > 0 {
+			switch {
+			case cmd == "bear":
+				s.ChannelMessageSend(m.ChannelID, "Rawr")
+			case cmd =="cpu":
+				s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("CPU usage is %f%%", getCPUUsage(1000)))
+			case cmd == "🐻":
+				s.ChannelMessageSend(m.ChannelID, getImage("bear"))
+			case strings.HasPrefix(strings.ToLower(cmd), "set playing"):
+				setBotStatus(s, strings.SplitAfter(m.Content,"set playing")[1])
+			case strings.HasPrefix(strings.ToLower(cmd), "img"):
+				term := strings.ToLower(strings.TrimSpace(cmd[4:]))
+				term = strings.Replace(term, " ", "%20",-1)
+				s.ChannelMessageSend(m.ChannelID, getImage(term))
+			case strings.HasPrefix(strings.ToLower(cmd), "image"):
+				term := strings.ToLower(strings.TrimSpace(cmd[6:]))
+				term = strings.Replace(term, " ", "%20",-1)
+				s.ChannelMessageSend(m.ChannelID, getImage(term))
+			case strings.HasPrefix(strings.ToLower(cmd), "youtube"):
+				term := strings.ToLower(strings.TrimSpace(cmd[8:]))
+				term = strings.Replace(term, " ", "%20",-1)
+				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
+			case strings.HasPrefix(strings.ToLower(cmd), "ytr"):
+				term := strings.ToLower(strings.TrimSpace(cmd[4:]))
+				term = strings.Replace(term, " ", "%20",-1)
+				s.ChannelMessageSend(m.ChannelID, getYTVid(term, true))
+			case strings.HasPrefix(strings.ToLower(cmd), "yt"):
+				term := strings.ToLower(strings.TrimSpace(cmd[3:]))
+				term = strings.Replace(term, " ", "%20",-1)
+				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
+			//add more commands to accept new responses and accept new statuses
+			default:
+				s.ChannelMessageSend(m.ChannelID, ":anger:`Not a command`")
 			}
 		} else{
-			fmt.Println("server id: ",cha.GuildID," Does not have permission, all requests run")
-			showOnce[cha.GuildID] = true
-			has = true
+			s.ChannelMessageSend(m.ChannelID, ":anger:`Not a command`")
+			//blank command
+			//list commands
 		}
-	}
-	mentions := m.Mentions
-	if len(mentions) > 0 {
-		if mentions[0].ID == botID {
-			if len(m.Content) < 22{
-					if !has {
-						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-						return
-					}
-				rand := rand.Intn(2100)
-				s.ChannelMessageSend(m.ChannelID, responses[rand%len(responses)] )
-			}else{
-				term := strings.ToLower(strings.TrimSpace(strings.SplitAfter(m.Content,">")[1]))
-				if strings.Contains(term, "bear"){
-					if !has {
-						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-						return
-					}
-					term = strings.Replace(term, " ", "%20",-1)
-					s.ChannelMessageSend(m.ChannelID, getImage(term))
-				}else if  strings.Contains(term, "cpu"){
-					if !has {
-						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-						return
-					}
-					s.ChannelMessageSend(m.ChannelID, fmt.Sprintf("CPU usage is %f%%", getCPUUsage(3000)))
-				}else{
-					if !has {
-						s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-						return
-					}
-					s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, how dare you not search for bears`")
-				}
-			}
-		}
-	}else if m.Content == "🐻"{
-		if !has {
-			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-			return
-		}
-		s.ChannelMessageSend(m.ChannelID, getImage("bear"))
-	}else if strings.ToLower(m.Content) == "bear"{
-		if !has {
-			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-			return
-		}
-		s.ChannelMessageSend(m.ChannelID, "Rawr")
-	} else if strings.HasPrefix(strings.ToLower(m.Content), "set playing"){
-		if !has {
-			s.ChannelMessageSend(m.ChannelID, ":anger: `Rawr, you dont have permission to do that`")
-			return
-		}
-		setBotStatus(s, strings.SplitAfter(m.Content,"set playing")[1])
 	}else{
 		rand := rand.Intn(21)
 		if rand > 19  {
 			s.ChannelMessageSend(m.ChannelID, ":bear:")
 		}
 	}
+}
+
+func getYTVid(content string, isRand bool) string{
+	if key != "" {
+		//if strings.Contains(content, "bear") {
+			maxRes := 1
+			if isRand {
+				maxRes = 50
+			}
+			url :=fmt.Sprintf("https://www.googleapis.com/youtube/v3/search?part=snippet&maxResults=%d&q=%s&key=%s", maxRes,content, key)
+			resp, err := http.Get(url)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			var res video
+			err = json.Unmarshal(body, &res)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			if len(res.Items) > 0 {
+				item := 0
+				if isRand {
+					item = rand.Intn(49)+1
+				}
+				return fmt.Sprintf("https://youtube.com/watch?v=%s", res.Items[item].ID.VideoID) 
+			}
+			return ":anger: `RAWR VIDEOS EXIST`"
+		//} else{
+		//	return ":anger: `Rawr, how dare you not search for bears`"
+		//}
+	}
+	return ":anger: `NO GOOGLE API KEY`"
 }
 
 func getCPUUsage(sleepTime int) (total float64) {
@@ -257,29 +320,33 @@ func getCPUUsage(sleepTime int) (total float64) {
 
 func getImage(content string) string{
 	if key != "" {
-		rand := rand.Intn(100)
-		url :=fmt.Sprintf("https://www.googleapis.com/customsearch/v1?q=%s&filter=1&num=1&start=%d&safe=high&cx=003565045981236897371:jydtkxy12lw&searchType=image&key=%s", content, rand, key)
-		resp, err := http.Get(url)
-		if err != nil {
-			fmt.Println(err)
-			return ":anger: `RAWR`"
-		}
-		defer resp.Body.Close()
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-			return ":anger: `RAWR`"
-		}
-		var res response
-		err = json.Unmarshal(body, &res)
-		if err != nil {
-			fmt.Println(err)
-			return ":anger: `RAWR`"
-		}
-		if len(res.Items) > 0 {
-			return res.Items[0].Link
-		}
-		return ":anger: `RAWR NO IMAGES EXIST`"
+		//if strings.Contains(content, "bear") {
+			rand := rand.Intn(100)
+			url :=fmt.Sprintf("https://www.googleapis.com/customsearch/v1?q=%s&filter=1&num=1&start=%d&safe=high&cx=003565045981236897371:jydtkxy12lw&searchType=image&key=%s", content, rand, key)
+			resp, err := http.Get(url)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			defer resp.Body.Close()
+			body, err := ioutil.ReadAll(resp.Body)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			var res response
+			err = json.Unmarshal(body, &res)
+			if err != nil {
+				fmt.Println(err)
+				return ":anger: `RAWR`"
+			}
+			if len(res.Items) > 0 {
+				return res.Items[0].Link
+			}
+			return ":anger: `RAWR NO IMAGES EXIST`"
+		//} else{
+		//	return ":anger: `Rawr, how dare you not search for bears`"
+		//}
 	}
 	return ":anger: `NO GOOGLE API KEY`"
 }
@@ -295,4 +362,12 @@ type Credentials struct {
 	Playing      []string `json:"Playing"`
 	Responses    []string `json:"Responses"`
 	Token        string   `json:"Token"`
+}
+
+type video struct {
+	Items []struct {
+		ID   struct {
+			VideoID string `json:"videoId"`
+		} `json:"id"`
+	} `json:"items"`
 }
