@@ -12,6 +12,7 @@ import (
 	"time"
 	"os"
 	"encoding/json"
+	"errors"
 )
 
 var token string
@@ -235,8 +236,37 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				term := strings.ToLower(strings.TrimSpace(cmd[3:]))
 				term = strings.Replace(term, " ", "%20",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
+			case strings.HasPrefix(strings.ToLower(cmd),"allow"):
+				mentions := m.Mentions
+				if len(mentions) > 0 {
+					for i:=0; i < len(mentions); i++{
+						mem, err := modifyUser(s, true, mentions[i], m.ChannelID)
+						if err != nil {
+							fmt.Println(err)
+							continue
+						}
+						fmt.Println(mem)
+						s.State.MemberAdd(mem)
+					}
+				} else {
+					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to allow`")
+				}
+			case strings.HasPrefix(strings.ToLower(cmd),"remove"):
+				mentions := m.Mentions
+				if len(mentions) > 0 {
+					for i:=0; i < len(mentions); i++{
+						mem, err := modifyUser(s, false, mentions[i], m.ChannelID)
+						if err != nil {
+							fmt.Println(err)
+							continue
+						}
+						fmt.Println(mem)
+						s.State.MemberAdd(mem)
+					}
+				} else {
+					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to remove`")
+				}
 			//add more commands to accept new responses and accept new statuses
-			//add command to give user permission to use bearbot
 			default:
 				s.ChannelMessageSend(m.ChannelID, ":anger:`Not a command`")
 			}
@@ -251,6 +281,44 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, ":bear:")
 		}
 	}
+}
+
+func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, ChannelID string) (member *discordgo.Member,err error) {
+	cha, err := s.State.Channel(ChannelID)
+	if err != nil {
+		fmt.Println(err)
+		return nil, err
+	}
+	member, err = s.State.Member(cha.GuildID,mention.ID)
+	if err != nil{
+		fmt.Println(err)
+		return nil, err
+	}
+	role := serverHasRole(s, cha.GuildID)
+	if add {
+		for i:=0; i < len (member.Roles); i++{
+			if member.Roles[i] == role {
+				return member, errors.New("already has role")
+			}
+		}
+		member.Roles = append(member.Roles, role)
+		return member, nil
+	}else{
+		hasRole := false
+		var roles []string
+		for i:=0; i < len (member.Roles); i++{
+			if member.Roles[i] == role {
+				hasRole = true
+				continue
+			}
+			roles = append(roles, member.Roles[i])
+		}
+		if !hasRole {
+			return member, errors.New("doesnt have role")
+		}
+		return member, nil
+	}
+	return member, nil
 }
 
 func getYTVid(content string, isRand bool) string{
