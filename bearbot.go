@@ -240,14 +240,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				mentions := m.Mentions
 				if len(mentions) > 0 {
 					for i:=0; i < len(mentions); i++{
-						_, err := modifyUser(s, true, mentions[i], m.ChannelID)
+						err := modifyUser(s, true, mentions[i], m.ChannelID)
 						if err != nil {
 							fmt.Println(err)
 							continue
 						}
-						/*if mem != nil {
-							s.State.MemberAdd(mem)
-						}*/
 					}
 				} else {
 					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to allow`")
@@ -256,14 +253,11 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				mentions := m.Mentions
 				if len(mentions) > 0 {
 					for i:=0; i < len(mentions); i++{
-						_, err := modifyUser(s, false, mentions[i], m.ChannelID)
+						err := modifyUser(s, false, mentions[i], m.ChannelID)
 						if err != nil {
 							fmt.Println(err)
 							continue
 						}
-						/*if mem != nil {
-							s.State.MemberAdd(mem)
-						}*/
 					}
 				} else {
 					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to remove`")
@@ -288,21 +282,22 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, ChannelID string) (err error) {
 	cha, err := s.State.Channel(ChannelID)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	member, err = s.State.Member(cha.GuildID,mention.ID)
+	member, err := s.State.Member(cha.GuildID,mention.ID)
 	if err != nil{
-		return nil, err
+		return err
 	}
 	role := serverHasRole(s, cha.GuildID)
 	if add {
 		for i:=0; i < len (member.Roles); i++{
 			if member.Roles[i] == role {
-				return member, errors.New("already has role")
+				return errors.New("already has role")
 			}
 		}
 		member.Roles = append(member.Roles, role)
 		err := s.GuildMemberEdit(cha.GuildID, mention.ID, member.Roles)
+		return err
 	}else{
 		hasRole := false
 		var roles []string
@@ -314,10 +309,11 @@ func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, Channel
 			roles = append(roles, member.Roles[i])
 		}
 		if !hasRole {
-			return member, errors.New("doesnt have role")
+			return errors.New("doesnt have role")
 		}
 		member.Roles = roles
 		err := s.GuildMemberEdit(cha.GuildID, mention.ID, member.Roles)
+		return err
 	}
 	return err
 }
