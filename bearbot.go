@@ -218,35 +218,36 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				setBotStatus(s, strings.SplitAfter(m.Content,"set playing")[1])
 			case strings.HasPrefix(strings.ToLower(cmd), "img"):
 				term := strings.ToLower(strings.TrimSpace(cmd[4:]))
-				term = strings.Replace(term, " ", "%20",-1)
+				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getImage(term))
 			case strings.HasPrefix(strings.ToLower(cmd), "image"):
 				term := strings.ToLower(strings.TrimSpace(cmd[6:]))
-				term = strings.Replace(term, " ", "%20",-1)
+				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getImage(term))
 			case strings.HasPrefix(strings.ToLower(cmd), "youtube"):
 				term := strings.ToLower(strings.TrimSpace(cmd[8:]))
-				term = strings.Replace(term, " ", "%20",-1)
+				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
 			case strings.HasPrefix(strings.ToLower(cmd), "ytr"):
 				term := strings.ToLower(strings.TrimSpace(cmd[4:]))
-				term = strings.Replace(term, " ", "%20",-1)
+				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, true))
 			case strings.HasPrefix(strings.ToLower(cmd), "yt"):
 				term := strings.ToLower(strings.TrimSpace(cmd[3:]))
-				term = strings.Replace(term, " ", "%20",-1)
+				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
 			case strings.HasPrefix(strings.ToLower(cmd),"allow"):
 				mentions := m.Mentions
 				if len(mentions) > 0 {
 					for i:=0; i < len(mentions); i++{
-						mem, err := modifyUser(s, true, mentions[i], m.ChannelID)
+						_, err := modifyUser(s, true, mentions[i], m.ChannelID)
 						if err != nil {
 							fmt.Println(err)
 							continue
 						}
-						fmt.Println(mem)
-						s.State.MemberAdd(mem)
+						/*if mem != nil {
+							s.State.MemberAdd(mem)
+						}*/
 					}
 				} else {
 					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to allow`")
@@ -255,13 +256,14 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				mentions := m.Mentions
 				if len(mentions) > 0 {
 					for i:=0; i < len(mentions); i++{
-						mem, err := modifyUser(s, false, mentions[i], m.ChannelID)
+						_, err := modifyUser(s, false, mentions[i], m.ChannelID)
 						if err != nil {
 							fmt.Println(err)
 							continue
 						}
-						fmt.Println(mem)
-						s.State.MemberAdd(mem)
+						/*if mem != nil {
+							s.State.MemberAdd(mem)
+						}*/
 					}
 				} else {
 					s.ChannelMessageSend(m.ChannelID, ":anger:`No user to remove`")
@@ -283,15 +285,13 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	}
 }
 
-func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, ChannelID string) (member *discordgo.Member,err error) {
+func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, ChannelID string) (err error) {
 	cha, err := s.State.Channel(ChannelID)
 	if err != nil {
-		fmt.Println(err)
 		return nil, err
 	}
 	member, err = s.State.Member(cha.GuildID,mention.ID)
 	if err != nil{
-		fmt.Println(err)
 		return nil, err
 	}
 	role := serverHasRole(s, cha.GuildID)
@@ -302,7 +302,7 @@ func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, Channel
 			}
 		}
 		member.Roles = append(member.Roles, role)
-		return member, nil
+		err := s.GuildMemberEdit(cha.GuildID, mention.ID, member.Roles)
 	}else{
 		hasRole := false
 		var roles []string
@@ -316,9 +316,10 @@ func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, Channel
 		if !hasRole {
 			return member, errors.New("doesnt have role")
 		}
-		return member, nil
+		member.Roles = roles
+		err := s.GuildMemberEdit(cha.GuildID, mention.ID, member.Roles)
 	}
-	return member, nil
+	return err
 }
 
 func getYTVid(content string, isRand bool) string{
