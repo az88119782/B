@@ -25,6 +25,9 @@ var serverRole map[string]ServerRole = make(map[string]ServerRole)
 var playing []string =[]string {"WITH THE FATE OF THE UNIVERSE", "jesus", "with his feet", "in the woods", "with other bears"}
 var responses []string = []string {":anger:`Rawr?`", "How did i end up in this thing?", "I will eat you when i get my powers back"}
 var dgv *discordgo.VoiceConnection = nil
+//add a queue for the bot to play
+//add a command to clear the queue
+//add a command to skip current song
 
 func init() {
 	readConfig()
@@ -359,9 +362,7 @@ func getStream(url string) (out string){
 }
 
 func stopPlaying(){
-	fmt.Println("test")
 	if dgv != nil {
-		fmt.Println("test")
 		dgvoice.KillPlayer()
 		dgv = nil
 	}
@@ -376,8 +377,10 @@ func playVideoSound(s *discordgo.Session, guildID, channelID, url string) error 
 			return err
 		}
 		dgvoice.PlayAudioFile(dgv, vid)
-		dgv.Close()
-		dgv = nil
+		if dgv != nil {
+			dgv.Close()
+			dgv = nil
+		}
 	}
 	return nil
 }
