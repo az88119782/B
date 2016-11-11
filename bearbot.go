@@ -5,14 +5,17 @@ import (
 	"strconv"
 	"math/rand"
 	"strings"
+	"os/exec"
 	"net/http"
 	"io/ioutil"
-	"os/exec"
 	"github.com/bwmarrin/discordgo"
+	"github.com/bwmarrin/dgvoice"
 	"time"
 	"os"
 	"encoding/json"
+	"regexp"
 	"errors"
+	"github.com/rylio/ytdl"
 )
 
 var token string
@@ -21,6 +24,7 @@ var key string
 var serverRole map[string]ServerRole = make(map[string]ServerRole)
 var playing []string =[]string {"WITH THE FATE OF THE UNIVERSE", "jesus", "with his feet", "in the woods", "with other bears"}
 var responses []string = []string {":anger:`Rawr?`", "How did i end up in this thing?", "I will eat you when i get my powers back"}
+var dgv *discordgo.VoiceConnection = nil
 
 func init() {
 	readConfig()
@@ -172,6 +176,28 @@ func runCmd(s *discordgo.Session, channel, user string)(run bool, err error){
 	return has, nil
 }
 
+func checkForUser(s *discordgo.Session, channelID, authorID string) (string, string){
+	c, err := s.State.Channel(channelID)
+	if err != nil {
+		return "", ""
+	}
+	g, err := s.State.Guild(c.GuildID)
+	if err != nil {
+		return "", ""
+	}
+	for _, vs := range g.VoiceStates {
+		if vs.UserID == authorID {
+			return vs.ChannelID, g.ID
+		}
+	}
+	return "", ""
+}
+
+func isAYoutubeLink(url string) (bool, error){
+	matched, err := regexp.MatchString("^https?://.*(?:youtu(.be)?(be.com)?/|v/|u/\\w/|embed/|watch?v=)([^#&?]*).*$", url)
+	return matched , err
+}
+
 func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 	if botID == "" {
 		getBotId(s)
@@ -228,10 +254,30 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 				term := strings.ToLower(strings.TrimSpace(cmd[8:]))
 				term = strings.Replace(term, " ", "+",-1)
 				s.ChannelMessageSend(m.ChannelID, getYTVid(term, false))
+			case strings.HasPrefix(strings.ToLower(cmd),"ytp"):
+				channelId, guildID := checkForUser(s, m.ChannelID, m.Author.ID)
+				if channelId != "" {
+					matched, err := isAYoutubeLink(cmd[4:])
+					if err == nil {
+						if matched{
+							go playVideoSound(s,guildID,channelId,cmd[4:])
+							s.ChannelMessageDelete(channelId, m.ID)
+						} else{
+							term := strings.ToLower(strings.TrimSpace(cmd[4:]))
+							term = strings.Replace(term, " ", "+",-1)
+							url := getYTVid(term, false)
+							go playVideoSound(s,guildID,channelId,url)
+						}
+					}
+				}else{
+					s.ChannelMessageSend(m.ChannelID, ":anger:`Not in voice channel`")
+				}
+			case strings.ToLower(cmd) == "stop":
+				stopPlaying()
 			case strings.HasPrefix(strings.ToLower(cmd), "ytr"):
 				term := strings.ToLower(strings.TrimSpace(cmd[4:]))
 				term = strings.Replace(term, " ", "+",-1)
-				s.ChannelMessageSend(m.ChannelID, getYTVid(term, true))
+				s.ChannelMessageSend(m.ChannelID, getYTVid(term, true))			
 			case strings.HasPrefix(strings.ToLower(cmd), "yt"):
 				term := strings.ToLower(strings.TrimSpace(cmd[3:]))
 				term = strings.Replace(term, " ", "+",-1)
@@ -277,6 +323,63 @@ func messageCreate(s *discordgo.Session, m *discordgo.MessageCreate) {
 			s.ChannelMessageSend(m.ChannelID, ":bear:")
 		}
 	}
+}
+
+func getStream(url string) (out string){
+	info, err := ytdl.GetVideoInfo(url)
+	if err!= nil {
+		return ""
+	}
+	formats := info.Formats
+	var vid, noVid ytdl.Format
+	for i:= 0; i< len(formats); i++{
+		if formats[i].VideoEncoding== ""{
+			if noVid.AudioBitrate < formats[i].AudioBitrate{
+				noVid = formats[i]
+			}
+		}else{
+			if vid.AudioBitrate < formats[i].AudioBitrate{
+				vid = formats[i]
+			}
+		}
+	}
+	if noVid.AudioBitrate > 0{
+		downloadURL, err := info.GetDownloadURL(noVid)
+		if err != nil {
+			return ""
+		}
+		return downloadURL.String()
+	} else {
+		downloadURL, err := info.GetDownloadURL(vid)
+		if err != nil {
+			return ""
+		}
+		return downloadURL.String()
+	}
+}
+
+func stopPlaying(){
+	fmt.Println("test")
+	if dgv != nil {
+		fmt.Println("test")
+		dgvoice.KillPlayer()
+		dgv = nil
+	}
+}
+
+func playVideoSound(s *discordgo.Session, guildID, channelID, url string) error {
+	vid := getStream(url)
+	if vid != "" {
+		var err error
+		dgv, err = s.ChannelVoiceJoin(guildID, channelID, false, true)
+		if err != nil {
+			return err
+		}
+		dgvoice.PlayAudioFile(dgv, vid)
+		dgv.Close()
+		dgv = nil
+	}
+	return nil
 }
 
 func modifyUser(s *discordgo.Session, add bool, mention *discordgo.User, ChannelID string) (err error) {
