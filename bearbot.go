@@ -480,8 +480,8 @@ func getCPUUsage(sleepTime int) (total float64) {
 							fmt.Println("Error: ", i, fields[i], err)
 						}
 						total[j] += val
-						if i == 4 { 
-							idle[j] = val
+						if i == 4 || i == 5  { 
+							idle[j] += val
 						}
 					}
 					break
