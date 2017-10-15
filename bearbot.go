@@ -365,6 +365,7 @@ func getStream(url string) (out string){
 func stopPlaying(){
 	if dgv != nil {
 		aPlaying <- true
+		dgv.Disconnect()
 		dgv.Close()
 		dgv = nil
 	}
@@ -381,6 +382,7 @@ func playVideoSound(s *discordgo.Session, guildID, channelID, url string) error 
 		aPlaying := make(chan bool, 1)
 		dgvoice.PlayAudioFile(dgv, vid, aPlaying)
 		if dgv != nil {
+			dgv.Disconnect()
 			dgv.Close()
 			dgv = nil
 		}
